@@ -1,0 +1,60 @@
+version: "3.7"
+services:
+
+  mongo:
+    restart: always
+    image: mongo:latest
+    container_name: mongo
+    hostname: mongo
+    ports:
+      - "27017:27017"
+    networks:
+      - data_access_manager
+    volumes:
+      - ./db/:/data/db
+
+  mongo-seed-datamodels:
+    container_name: mongo-seed-datamodels
+    build: ./mongo-seed-dataModels
+    networks:
+      - data_access_manager
+    depends_on:
+      - mongo
+  
+  mongo-seed-templates:
+    container_name: mongo-seed-templates
+    build: ./mongo-seed-pythonTemplates
+    networks:
+      - data_access_manager
+    depends_on:
+      - mongo
+  
+  dataports-api:
+    restart: always
+    container_name: dataports-api
+    build: ./dataports-api/
+    command: npm run start
+    environment:
+      NODE_ENV: production
+      MONGO_URL: "mongodb://mongo/dataports-db"
+    depends_on:
+      - mongo
+    networks:
+      - data_access_manager
+    ports:
+      - '3000:3000'
+    expose:
+      - 3000
+  
+  dataports-ui:
+    restart: always
+    container_name: dataports-ui
+    build: ./dataports-ui/
+    depends_on:
+      - dataports-api
+    ports:
+      - '8080:8080'
+
+networks:
+  data_access_manager:
+    driver: bridge
