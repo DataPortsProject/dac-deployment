@@ -1,10 +1,37 @@
 version: "3.7"
 services:
+  
+  #orion:
+  #  image: fiware/orion
+  #  container_name: orion
+  #  ports:
+  #    - "1026:1026"
+  #  depends_on:
+  #    - mongo_fiware
+  #  command: -dbhost mongo_fiware
+
+  orion:
+    image: fiware/orion:2.2.0
+    container_name: orion
+    hostname: orion
+    ports:
+      - "1026:1026"
+    entrypoint: ["sh", "-c", "rm /tmp/contextBroker.pid; /usr/bin/contextBroker -fg -multiservice -dbhost mongo_fiware -logLevel DEBUG"]
+    restart: always
+    depends_on:
+      - "mongo_fiware"
+
+  mongo_fiware:
+    image: mongo:4.4
+    command: --nojournal
+    container_name: mongo_orion
+    ports:
+      - "27018:27017"
 
   mongo:
     restart: always
     image: mongo:latest
-    container_name: mongo
+    container_name: mongo_dataports
     hostname: mongo
     ports:
       - "27017:27017"
@@ -43,18 +70,96 @@ services:
       - data_access_manager
     ports:
       - '3000:3000'
+      - '3010:3010'
     expose:
       - 3000
+      - 3010
   
   dataports-ui:
     restart: always
     container_name: dataports-ui
     build: ./dataports-ui/
+    networks:
+      - data_access_manager
     depends_on:
       - dataports-api
     ports:
       - '8080:8080'
 
+  node-red:
+    image: nodered/node-red:latest
+    container_name: nodeRED_dataports
+    restart: unless-stopped
+    user: "0:1000"
+    environment:
+      - TZ=Europe/Paris
+    networks:
+      - data_access_manager
+    ports:
+      - "1880:1880"
+    volumes:
+      - "./node-red:/data"
+    
+  mqtt:
+    image: eclipse-mosquitto:1.6.13
+    container_name: mqtt_dataports
+    restart: unless-stopped
+    networks:
+      - data_access_manager
+
+  # Databases - Cygnus is persisting to Mongodb
+  mongo_cygnus:
+    #restart: always
+    image: mongo:latest
+    command: --nojournal
+    container_name: mongo_cygnus
+    #command: --bind_ip_all --smallfiles
+    volumes:
+      - mongo-cygnus:/data/db
+    ports:
+      - "27018:27017"
+  
+  # Cygnus is configured to write context data to PostgeSQL
+  cygnus:
+    image: fiware/cygnus-ngsi
+    hostname: cygnus
+    container_name: fiware-cygnus
+    networks:
+      - default
+    depends_on:
+      - mongo_cygnus
+    ports:
+      - "5055:5055"
+      - "5080:5080"
+    expose:
+      - 5055
+    environment:
+      - "CYGNUS_LOG_LEVEL=ERROR" # The logging level for Cygnus
+      - "CYGNUS_SERVICE_PORT=5055" # Notification Port that Cygnus listens to for subscriptions
+      - "CYGNUS_API_PORT=5080" # Port that Cygnus listens on for operational reasons
+      - CYGNUS_AGENT_NAME=cygnus-ngsi
+      - CYGNUS_MONGO_SERVICE_PORT=5055
+#      - CYGNUS_DEFAULT_SERVICE=def_serv 
+#      - CYGNUS_DEFAULT_SERVICE_PATH=reflexWater
+      - CYGNUS_MONGO_HOSTS=mongo_cygnus:27017
+      - CYGNUS_MONGO_USER=
+      - CYGNUS_MONGO_PASS=
+      - CYGNUS_MONGO_ENABLE_ENCODING=false
+      - CYGNUS_MONGO_ENABLE_GROUPING=false
+      - CYGNUS_MONGO_ENABLE_NAME_MAPPINGS=false
+      - CYGNUS_MONGO_DATA_MODEL=dm-by-entity
+      - CYGNUS_MONGO_ATTR_PERSISTENCE=column
+      - CYGNUS_MONGO_DB_PREFIX=db_
+      - CYGNUS_MONGO_COLLECTION_PREFIX=col_   
+      - CYGNUS_MONGO_ENABLE_LOWERCASE=false
+      - CYGNUS_MONGO_BATCH_TIMEOUT=30
+      - CYGNUS_MONGO_BATCH_TTL=10
+      - CYGNUS_MONGO_DATA_EXPIRATION=0
+      - CYGNUS_MONGO_COLLECTIONS_SIZE=0
+
 networks:
   data_access_manager:
     driver: bridge
+
+volumes:
+  mongo-cygnus:
