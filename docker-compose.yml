@@ -58,7 +58,7 @@ services:
   dataports-api:
     restart: always
     container_name: dataports-api
-    build: ../dataports-api/
+    build: ../data-access-manager-api/
     #command: npm run start
     environment:
       # set this to true if API is directly exposed to internet. If behind a proxy, set to false and setup CORS in the proxy
@@ -92,7 +92,7 @@ services:
     restart: always
     container_name: dataports-ui
     build:
-      context: ../dataports-ui/
+      context: ../data-access-manager-ui/
       dockerfile: Dockerfile_refactored
       # volumes:
       #   - /etc/letsencrypt/live/dps.dataports.com.es/cert.pem:/etc/ssl/certs/cert.crt:ro
