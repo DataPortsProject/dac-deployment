@@ -1,23 +1,20 @@
 version: "3.7"
 services:
-  
-  #orion:
-  #  image: fiware/orion
-  #  container_name: orion
-  #  ports:
-  #    - "1026:1026"
-  #  depends_on:
-  #    - mongo_fiware
-  #  command: -dbhost mongo_fiware
-
   orion:
     image: fiware/orion:2.2.0
     container_name: orion
     hostname: orion
     ports:
       - "1026:1026"
-    entrypoint: ["sh", "-c", "rm /tmp/contextBroker.pid; /usr/bin/contextBroker -fg -multiservice -dbhost mongo_fiware -logLevel DEBUG"]
+    entrypoint:
+      [
+        "sh",
+        "-c",
+        "rm /tmp/contextBroker.pid; /usr/bin/contextBroker -fg -multiservice -dbhost mongo_fiware -logLevel DEBUG"
+      ]
     restart: always
+    networks:
+      - data_access_manager
     depends_on:
       - "mongo_fiware"
 
@@ -26,7 +23,9 @@ services:
     command: --nojournal
     container_name: mongo_orion
     ports:
-      - "27018:27017"
+      - "27019:27017"
+    networks:
+      - data_access_manager
 
   mongo:
     restart: always
@@ -42,28 +41,42 @@ services:
 
   mongo-seed-datamodels:
     container_name: mongo-seed-datamodels
-    build: ./mongo-seed-dataModels
+    build: ../mongo-seed-datamodels
     networks:
       - data_access_manager
     depends_on:
       - mongo
-  
+
   mongo-seed-templates:
     container_name: mongo-seed-templates
-    build: ./mongo-seed-pythonTemplates
+    build: ../mongo-seed-templates
     networks:
       - data_access_manager
     depends_on:
       - mongo
-  
+
   dataports-api:
     restart: always
     container_name: dataports-api
-    build: ./dataports-api/
-    command: npm run start
+    build: ../dataports-api/
+    #command: npm run start
     environment:
+      # set this to true if API is directly exposed to internet. If behind a proxy, set to false and setup CORS in the proxy
+      ENABLE_CORS: 'true'
       NODE_ENV: production
+      INSECURE_WS: 'false'
       MONGO_URL: "mongodb://mongo/dataports-db"
+      # Enable docker API on your machine: https://docs.docker.com/engine/api/
+      DOCKER_API: "http://host.docker.internal:2375"
+      ORION_URL: "http://orion:1026"
+      CYGNUS_URL: "http://cygnus:5055"
+      # Set here the address to ICSS component. The provided nodered is for demo purposes
+      NODERED_URL: "http://node-red:1880"
+      KEYCLOAK_URL: "https://iam.dataports.com.es:8443"
+      # if using LetsEncrypt, uncomment these volumes and refer to the correct certs
+      #volumes:
+      #  - /etc/letsencrypt/live/dps.dataports.com.es/cert.pem:/etc/ssl/certs/cert.crt:ro
+      #  - /etc/letsencrypt/live/dps.dataports.com.es/privkey.pem:/etc/ssl/certs/cert.key:ro
     depends_on:
       - mongo
     networks:
@@ -74,17 +87,22 @@ services:
     expose:
       - 3000
       - 3010
-  
+
   dataports-ui:
     restart: always
     container_name: dataports-ui
-    build: ./dataports-ui/
+    build:
+      context: ../dataports-ui/
+      dockerfile: Dockerfile_refactored
+      # volumes:
+      #   - /etc/letsencrypt/live/dps.dataports.com.es/cert.pem:/etc/ssl/certs/cert.crt:ro
+      #   - /etc/letsencrypt/live/dps.dataports.com.es/privkey.pem:/etc/ssl/certs/cert.key:ro
     networks:
       - data_access_manager
     depends_on:
       - dataports-api
     ports:
-      - '8080:8080'
+      - '8080:443'
 
   node-red:
     image: nodered/node-red:latest
@@ -99,7 +117,7 @@ services:
       - "1880:1880"
     volumes:
       - "./node-red:/data"
-    
+
   mqtt:
     image: eclipse-mosquitto:1.6.13
     container_name: mqtt_dataports
@@ -109,7 +127,7 @@ services:
 
   # Databases - Cygnus is persisting to Mongodb
   mongo_cygnus:
-    #restart: always
+    restart: always
     image: mongo:latest
     command: --nojournal
     container_name: mongo_cygnus
@@ -118,7 +136,9 @@ services:
       - mongo-cygnus:/data/db
     ports:
       - "27018:27017"
-  
+    networks:
+      - data_access_manager
+
   # Cygnus is configured to write context data to PostgeSQL
   cygnus:
     image: fiware/cygnus-ngsi
@@ -126,6 +146,10 @@ services:
     container_name: fiware-cygnus
     networks:
       - default
+      - data_access_manager
+    volumes:
+      # Override default cygnus config to disable STH
+      - ./config/cygnus/agent.conf:/opt/apache-flume/conf/agent.conf:ro
     depends_on:
       - mongo_cygnus
     ports:
@@ -139,8 +163,9 @@ services:
       - "CYGNUS_API_PORT=5080" # Port that Cygnus listens on for operational reasons
       - CYGNUS_AGENT_NAME=cygnus-ngsi
       - CYGNUS_MONGO_SERVICE_PORT=5055
-#      - CYGNUS_DEFAULT_SERVICE=def_serv 
-#      - CYGNUS_DEFAULT_SERVICE_PATH=reflexWater
+      - CYGNUS_MONGO_SKIP_NAME_MAPPINGS_GENERATION="false"
+      #      - CYGNUS_DEFAULT_SERVICE=def_serv
+      #      - CYGNUS_DEFAULT_SERVICE_PATH=reflexWater
       - CYGNUS_MONGO_HOSTS=mongo_cygnus:27017
       - CYGNUS_MONGO_USER=
       - CYGNUS_MONGO_PASS=
@@ -150,12 +175,14 @@ services:
       - CYGNUS_MONGO_DATA_MODEL=dm-by-entity
       - CYGNUS_MONGO_ATTR_PERSISTENCE=column
       - CYGNUS_MONGO_DB_PREFIX=db_
-      - CYGNUS_MONGO_COLLECTION_PREFIX=col_   
+      - CYGNUS_MONGO_COLLECTION_PREFIX=col_
       - CYGNUS_MONGO_ENABLE_LOWERCASE=false
-      - CYGNUS_MONGO_BATCH_TIMEOUT=30
+      - CYGNUS_MONGO_BATCH_TIMEOUT=5
+      - CYGNUS_MONGO_BATCH_SIZE=25
       - CYGNUS_MONGO_BATCH_TTL=10
       - CYGNUS_MONGO_DATA_EXPIRATION=0
       - CYGNUS_MONGO_COLLECTIONS_SIZE=0
+      - CYGNUS_SKIP_CONF_GENERATION=true
 
 networks:
   data_access_manager:
