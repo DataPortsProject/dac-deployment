@@ -41,7 +41,7 @@ services:
 
   mongo-seed-datamodels:
     container_name: mongo-seed-datamodels
-    build: ../mongo-seed-datamodels
+    build: ../dac-mongo-seed-models
     networks:
       - data_access_manager
     depends_on:
@@ -49,7 +49,7 @@ services:
 
   mongo-seed-templates:
     container_name: mongo-seed-templates
-    build: ../mongo-seed-templates
+    build: ../dac-mongo-seed-template
     networks:
       - data_access_manager
     depends_on:
@@ -58,7 +58,7 @@ services:
   dataports-api:
     restart: always
     container_name: dataports-api
-    build: ../data-access-manager-api/
+    build: ../dac-api/
     #command: npm run start
     environment:
       # set this to true if API is directly exposed to internet. If behind a proxy, set to false and setup CORS in the proxy
@@ -92,7 +92,7 @@ services:
     restart: always
     container_name: dataports-ui
     build:
-      context: ../data-access-manager-ui/
+      context: ../dac-ui/
       dockerfile: Dockerfile_refactored
       # volumes:
       #   - /etc/letsencrypt/live/dps.dataports.com.es/cert.pem:/etc/ssl/certs/cert.crt:ro
