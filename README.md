@@ -4,19 +4,19 @@ This repository contains the docker-compose file necessary to deploy the require
 
 
 You will need to clone at least the following repos (do not remane default directory names in the working copy):
-- https://egitlab.iti.es/dataports/data_access/data-access-manager-api
-- https://egitlab.iti.es/dataports/data_access/data-access-manager-ui
-- https://egitlab.iti.es/dataports/data_access/mongo-seed-datamodels
-- https://egitlab.iti.es/dataports/data_access/mongo-seed-templates
+- https://github.com/DataPortsProject/dac-api
+- https://github.com/DataPortsProject/dac-ui
+- https://github.com/DataPortsProject/dac-mongo-seed-models
+- https://github.com/DataPortsProject/dac-mongo-seed-template
 
 
 
 Your DAC folder should look like (once repos are cloned) this:
-- data-access-deployment
-- data-access-manager-api
-- data-access-manager-ui
-- mongo-seed-templates
-- mongo-seed-datamodels
+- dac-deployment
+- dac-api
+- dac-ui
+- dac-mongo-seed-template
+- dac-mongo-seed-models
 
 
 To run the stack, simply issue the command:
@@ -26,7 +26,7 @@ To run the stack, simply issue the command:
 
 # Setup services
 By default, the ```docker-compose``` contains the basic setup to run the whole component without without a proxy (all entpoints and ports should be reachable locally).
-If you plan to add a proxy, you may need to adjust endpoints in ```data-access-manager-ui/src\utils\constants.js``` by changing the values of ```baseURL_DAM_API``` and ```baseURL_API_ON_DEMAND```
+If you plan to add a proxy, you may need to adjust endpoints in ```dac-ui/src\utils\constants.js``` by changing the values of ```baseURL_DAM_API``` and ```baseURL_API_ON_DEMAND```
 
 
 The configuration params exposed in the docker-compose file are set in the ```dataports-api``` service. These are:
